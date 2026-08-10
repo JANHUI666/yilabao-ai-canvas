@@ -65,6 +65,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
     const webdavReady = Boolean(webdav.url.trim());
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
+    const primaryChannel = config.channels[0] || null;
     const locale = i18n.resolvedLanguage as AppLocale;
     useEffect(() => setActiveTab(initialTab), [initialTab]);
 
@@ -92,6 +93,22 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     };
 
     const updateChannels = (channels: ModelChannel[]) => saveConfig(withChannels(config, channels));
+
+    const updatePrimaryChannel = (patch: Partial<ModelChannel>) => {
+        if (!primaryChannel) return;
+        updateChannels(
+            config.channels.map((channel, index) =>
+                index === 0
+                    ? {
+                          ...channel,
+                          apiFormat: "openai",
+                          models: [{ name: "gpt-image-2", capability: "image" }],
+                          ...patch,
+                      }
+                    : channel,
+            ),
+        );
+    };
 
     const addChannel = () => {
         const channel = createModelChannel({ name: t("config.channels.numberedName", { count: config.channels.length + 1 }) });
@@ -184,6 +201,26 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         label: t("config.tabs.channels"),
                         children: (
                             <div>
+                                <section className="mb-5 rounded-xl border border-stone-200 p-4 dark:border-stone-800">
+                                    <div className="mb-3">
+                                        <div className="text-sm font-semibold">{t("config.quickSetup.title")}</div>
+                                        <div className="mt-1 text-xs leading-5 text-stone-500">{t("config.quickSetup.description")}</div>
+                                    </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <label className="block md:col-span-2">
+                                            <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.baseUrl")}</span>
+                                            <Input value={primaryChannel?.baseUrl || ""} onChange={(event) => updatePrimaryChannel({ baseUrl: event.target.value })} placeholder="https://api.qiuqiutoken.com/v1" />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-sm font-medium">API Key</span>
+                                            <Input.Password autoComplete="off" value={primaryChannel?.apiKey || ""} onChange={(event) => updatePrimaryChannel({ apiKey: event.target.value })} placeholder={t("config.quickSetup.apiKeyPlaceholder")} />
+                                        </label>
+                                        <label className="block">
+                                            <span className="mb-1 block text-sm font-medium">{t("config.quickSetup.model")}</span>
+                                            <Input value="gpt-image-2" readOnly />
+                                        </label>
+                                    </div>
+                                </section>
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                                     <div className="text-xs text-stone-500">{t("config.channels.description")}</div>
                                     <Button type="primary" icon={<Plus className="size-4" />} onClick={addChannel}>

@@ -30,7 +30,7 @@ export default {
     },
     settingsPanels: {
         common: { auto: "自动", low: "低", medium: "中", high: "高", xhigh: "极高" },
-        image: { title: "图像设置", quality: "质量", size: "尺寸", align16: "16 倍数对齐", align16Hint: "输入完成后自动向上补成 16 的倍数", aspectRatio: "宽高比", transparent: "透明背景", transparentHint: "开启后生成无背景的透明图像（仅部分模型可用）", count: "生成张数", images: "{{count}} 张" },
+        image: { title: "图像设置", quality: "质量", size: "尺寸", align16: "16 倍数对齐", align16Hint: "输入完成后自动向上补成 16 的倍数", aspectRatio: "宽高比", posterSizes: "易拉宝尺寸", transparent: "透明背景", transparentHint: "开启后生成无背景的透明图像（仅部分模型可用）", count: "生成张数", images: "{{count}} 张" },
         video: { title: "视频设置", quality: "清晰度", size: "尺寸", seconds: "秒数", resolution: "分辨率", ratio: "比例", duration: "时长", smart: "智能", output: "输出", generateAudio: "生成声音", watermark: "添加水印", adaptive: "自适应", sizes: { landscape: "横屏", portrait: "竖屏", square: "方形", widescreen: "宽屏", tall: "长图", auto: "自动" }, ratios: { landscape: "横屏", portrait: "竖屏", square: "方形", standardLandscape: "标准横屏", standardPortrait: "标准竖屏", cinematic: "宽银幕", adaptive: "自适应" } },
         audio: { title: "音频设置", voice: "声音", format: "格式", speed: "语速", instructions: "声音指令", instructionsPlaceholder: "例如：自然、温暖、适合旁白。" },
         text: { title: "文本设置", reasoning: "推理强度" },
@@ -277,7 +277,7 @@ export default {
             angleTitle: "AI 多角度", angleDescription: "左侧只预览方向，结果会基于原图重新生成", horizontal: "左右角度", pitch: "俯仰角度", distance: "镜头距离", lens: "广角镜头", standard: "标准", wide: "广角", aiGenerate: "AI 生成",
             upscaleTitle: "图片放大", source: "源图", targetPixels: "目标像素", maxReached: "图片已达到 4K，无需放大", targetReached: "图片已达到当前目标像素，无需放大", algorithm: "放大算法", outputSize: "输出尺寸", upscale: "生成放大图", high: "高清插值", highDescription: "适合照片和细节图", bilinear: "双线性", bilinearDescription: "平滑、速度快", nearest: "最近邻", nearestDescription: "适合像素风格",
             cropTitle: "裁剪图片", adjustCrop: "调整裁剪框", cropHint: "滚轮缩放 · 中键或空格+左键拖动画面", cropSize: "裁剪尺寸 {{size}}", ratio: "比例 {{ratio}}", original: "原图 {{width}} x {{height}}", confirmCrop: "确认裁剪", free: "自由", fixed: "固定", originalMode: "原图",
-            maskTitle: "局部遮罩编辑", maskHint: "滚轮缩放 · 中键或空格+左键拖动画面 · Alt+左/右键横拖调笔刷 · Ctrl/Cmd+Z 撤回 · Ctrl/Cmd+Shift+Z 重做", brush: "画笔", erase: "擦除", undoMaskTitle: "撤回局部涂抹 (Ctrl/Cmd+Z)", undoMask: "撤回局部涂抹", redoMaskTitle: "重做局部涂抹 (Ctrl/Cmd+Shift+Z)", redoMask: "重做局部涂抹", brushSize: "笔刷大小", editInstructions: "修改要求", maskPlaceholder: "例如：把选中区域改成金属材质，保持原图光影", maskPromptRequired: "请输入修改要求", maskRequired: "请先涂抹局部区域", aiEdit: "AI 修改",
+            maskTitle: "局部遮罩编辑", maskHint: "用画笔涂、矩形框或套索圈出要修改的位置 · 滚轮缩放 · Ctrl/Cmd+Z 撤回", brush: "画笔", rectangle: "矩形", lasso: "套索", selectArea: "选择区域", erase: "擦除", undoMaskTitle: "撤回局部选择 (Ctrl/Cmd+Z)", undoMask: "撤回局部选择", redoMaskTitle: "重做局部选择 (Ctrl/Cmd+Shift+Z)", redoMask: "重做局部选择", brushSize: "笔刷大小", editInstructions: "修改要求", maskPlaceholder: "例如：把框中的产品改成红色，其他地方完全不变", maskPromptRequired: "请输入修改要求", maskRequired: "请先选择要修改的区域", aiEdit: "AI 修改",
             splitTitle: "切分图片", splitDescription: "生成 {{count}} 个图片子节点，并按原图网格排列到画布右侧", splitHint: "滚轮缩放 · 中键或空格+左键拖动画面 · Delete 删除选中线 · Ctrl/Cmd+Z 撤回 · Ctrl/Cmd+Shift+Z 重做", undoSplitTitle: "撤回切图调整 (Ctrl/Cmd+Z)", undoSplit: "撤回切图调整", redoSplitTitle: "重做切图调整 (Ctrl/Cmd+Shift+Z)", redoSplit: "重做切图调整", rows: "行数", columns: "列数", horizontalLine: "横向线", verticalLine: "纵向线", deleteLine: "删除线", resetLines: "重置线", pieceCount: "切片数量", pieces: "{{count}} 个", averageSize: "平均约", generateChildren: "生成子节点",
         },
         plugins: { title: "节点插件", installedPlugin: "已安装插件 {{name}}", installed: "已安装 {{name}}", installFailed: "安装失败：{{error}}", enabled: "已启用", disabled: "已禁用", upgradeAvailable: "有新版本，点击升级", updateFromSource: "从来源更新", updated: "已更新", uninstallTitle: "卸载该插件？", uninstall: "卸载", newVersion: "有新版本可升级", officialDescription: "本项目官方插件，来自仓库注册表", refresh: "刷新", loadFailed: "加载失败：{{error}}", loadingOfficial: "正在获取官方插件…", noOfficial: "暂无官方插件", install: "安装", urlPlaceholder: "输入插件 JS 文件 URL，例如 https://.../plugin.js", noThirdParty: "还没有安装第三方插件", official: "官方插件", local: "本地插件", thirdParty: "第三方插件", warning: "插件代码会在当前页面内直接执行，可访问本地数据（包含 AI API Key）。请仅安装你信任来源的插件。", aiConfigRequired: "AI 配置未就绪，请先在设置里配置模型与密钥", interactiveTitle: "当前：交互中。点击切回「移动」——拖动可移动节点", movableTitle: "当前：可移动。点击切到「交互」——可操作节点内容（如转动全景）", move: "移动", interact: "交互" },
@@ -364,6 +364,12 @@ export default {
             preferences: "偏好设置",
             promptSources: "提示词来源",
             localStorage: "本地存储",
+        },
+        quickSetup: {
+            title: "AI 图片设置",
+            description: "每位同事只需填写自己的 API Key。Key 只保存在当前浏览器，不会上传到本网站。",
+            apiKeyPlaceholder: "填写你自己的 Key",
+            model: "模型",
         },
         localStorage: {
             title: "IndexedDB 存储使用情况",

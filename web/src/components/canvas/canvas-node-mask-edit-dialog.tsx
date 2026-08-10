@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { Button, Input, Modal, Slider, Tooltip } from "antd";
-import { Brush, Eraser, Redo2, RotateCcw, Undo2, WandSparkles, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Button, Input, Modal, Segmented, Slider, Tooltip } from "antd";
+import { Brush, Eraser, LassoSelect, Redo2, RotateCcw, SquareDashed, Undo2, WandSparkles, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { readImageMeta } from "@/lib/image-utils";
@@ -13,44 +13,50 @@ export type CanvasImageMaskEditPayload = {
 };
 
 type DrawMode = "paint" | "erase";
+type SelectionTool = "brush" | "rectangle" | "lasso";
 type Point = { x: number; y: number };
-type MaskStroke = { mode: DrawMode; size: number; points: Point[] };
+type MaskAction = { tool: SelectionTool; mode: DrawMode; size: number; points: Point[] };
 type BrushPreview = { x: number; y: number; size: number; adjusting: boolean };
 
 const defaultBrushSize = 100;
-const maskFillColor = "rgba(37, 99, 235, .38)";
+const maskFillColor = "rgba(239, 68, 68, .34)";
+const maskStrokeColor = "#ef4444";
 
 export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: { dataUrl: string; open: boolean; onClose: () => void; onConfirm: (payload: CanvasImageMaskEditPayload) => void }) {
     const { t } = useTranslation();
     const maskCanvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-    const drawingRef = useRef<{ active: boolean; stroke: MaskStroke | null }>({ active: false, stroke: null });
+    const drawingRef = useRef<{ active: boolean; action: MaskAction | null }>({ active: false, action: null });
     const brushAdjustRef = useRef<{ active: boolean; pointerId: number; startX: number; startSize: number; previewX: number; previewY: number } | null>(null);
-    const historyRef = useRef<MaskStroke[]>([]);
-    const redoRef = useRef<MaskStroke[]>([]);
+    const historyRef = useRef<MaskAction[]>([]);
+    const redoRef = useRef<MaskAction[]>([]);
     const [image, setImage] = useState<{ width: number; height: number } | null>(null);
     const [prompt, setPrompt] = useState("");
     const [brushSize, setBrushSize] = useState(defaultBrushSize);
+    const [tool, setTool] = useState<SelectionTool>("brush");
     const [mode, setMode] = useState<DrawMode>("paint");
     const [error, setError] = useState("");
     const [historySize, setHistorySize] = useState(0);
     const [redoSize, setRedoSize] = useState(0);
     const [brushPreview, setBrushPreview] = useState<BrushPreview | null>(null);
+    const [shapePreview, setShapePreview] = useState<MaskAction | null>(null);
     const viewport = useImageEditorViewport(image, open);
 
     useEffect(() => {
         if (!open) return;
         setPrompt("");
         setBrushSize(defaultBrushSize);
+        setTool("brush");
         setMode("paint");
         setError("");
         setHistorySize(0);
         setRedoSize(0);
         setBrushPreview(null);
+        setShapePreview(null);
         historyRef.current = [];
         redoRef.current = [];
         brushAdjustRef.current = null;
-        drawingRef.current = { active: false, stroke: null };
+        drawingRef.current = { active: false, action: null };
         void readImageMeta(dataUrl).then(setImage);
     }, [dataUrl, open]);
 
@@ -59,20 +65,20 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
         clearCanvas(previewCanvasRef.current);
     }, [image]);
 
-    const draw = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const drawBrush = (event: ReactPointerEvent<HTMLCanvasElement>) => {
         const point = readCanvasPoint(event.currentTarget, event.clientX, event.clientY);
         const maskCanvas = maskCanvasRef.current;
         const context = maskCanvas?.getContext("2d", { willReadFrequently: true });
         const previewContext = previewCanvasRef.current?.getContext("2d");
-        const stroke = drawingRef.current.stroke;
-        if (!maskCanvas || !context || !previewContext || !stroke) return;
-        configureStrokeContext(context, stroke);
-        configurePreviewStrokeContext(previewContext, stroke);
-        const last = stroke.points.at(-1);
-        drawMaskStroke(context, last || point, point, stroke.size);
-        drawMaskStroke(previewContext, last || point, point, stroke.size);
-        stroke.points.push(point);
-        if (stroke.mode === "paint") {
+        const action = drawingRef.current.action;
+        if (!maskCanvas || !context || !previewContext || !action || action.tool !== "brush") return;
+        configureStrokeContext(context, action);
+        configurePreviewStrokeContext(previewContext, action);
+        const last = action.points.at(-1);
+        drawMaskStroke(context, last || point, point, action.size);
+        drawMaskStroke(previewContext, last || point, point, action.size);
+        action.points.push(point);
+        if (action.mode === "paint") {
             setError("");
         }
     };
@@ -87,7 +93,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
     };
 
     const startDraw = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-        if ((event.button === 0 || event.button === 2) && event.altKey) {
+        if (tool === "brush" && (event.button === 0 || event.button === 2) && event.altKey) {
             event.preventDefault();
             event.stopPropagation();
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -106,9 +112,15 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
         event.preventDefault();
         event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);
-        updateBrushPreview(event);
-        drawingRef.current = { active: true, stroke: { mode, size: brushSize, points: [] } };
-        draw(event);
+        const point = readCanvasPoint(event.currentTarget, event.clientX, event.clientY);
+        drawingRef.current = { active: true, action: { tool, mode, size: brushSize, points: tool === "rectangle" ? [point, point] : [point] } };
+        if (tool === "brush") {
+            updateBrushPreview(event);
+            drawBrush(event);
+        } else {
+            setBrushPreview(null);
+            setShapePreview(drawingRef.current.action);
+        }
     };
 
     const moveDraw = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -126,10 +138,19 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
             });
             return;
         }
-        updateBrushPreview(event);
+        if (tool === "brush") updateBrushPreview(event);
         if (!drawingRef.current.active) return;
         event.preventDefault();
-        draw(event);
+        const action = drawingRef.current.action;
+        if (!action) return;
+        if (action.tool === "brush") {
+            drawBrush(event);
+            return;
+        }
+        const point = readCanvasPoint(event.currentTarget, event.clientX, event.clientY);
+        if (action.tool === "rectangle") action.points[1] = point;
+        else action.points.push(point);
+        setShapePreview({ ...action, points: [...action.points] });
     };
 
     const stopDraw = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -140,10 +161,20 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
             updateBrushPreview(event, brushSize);
             return;
         }
-        const stroke = drawingRef.current.stroke;
-        drawingRef.current = { active: false, stroke: null };
-        if (stroke?.points.length) {
-            historyRef.current.push(stroke);
+        const action = drawingRef.current.action;
+        drawingRef.current = { active: false, action: null };
+        const meaningful = Boolean(action && hasMeaningfulAction(action));
+        if (action && meaningful && action.tool !== "brush") {
+            const maskContext = maskCanvasRef.current?.getContext("2d", { willReadFrequently: true });
+            const previewContext = previewCanvasRef.current?.getContext("2d");
+            if (maskContext && previewContext) {
+                drawMaskAction(maskContext, action, false);
+                drawMaskAction(previewContext, action, true);
+            }
+            setShapePreview(null);
+        }
+        if (action && meaningful) {
+            historyRef.current.push(action);
             setHistorySize(historyRef.current.length);
             redoRef.current = [];
             setRedoSize(0);
@@ -152,8 +183,8 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
 
     const undoMask = useCallback(() => {
         if (drawingRef.current.active || !historyRef.current.length) return;
-        const stroke = historyRef.current.pop();
-        if (stroke) redoRef.current.push(stroke);
+        const action = historyRef.current.pop();
+        if (action) redoRef.current.push(action);
         setHistorySize(historyRef.current.length);
         setRedoSize(redoRef.current.length);
         replayMask(historyRef.current, maskCanvasRef.current, previewCanvasRef.current);
@@ -162,8 +193,8 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
 
     const redoMask = useCallback(() => {
         if (drawingRef.current.active || !redoRef.current.length) return;
-        const stroke = redoRef.current.pop();
-        if (stroke) historyRef.current.push(stroke);
+        const action = redoRef.current.pop();
+        if (action) historyRef.current.push(action);
         setHistorySize(historyRef.current.length);
         setRedoSize(redoRef.current.length);
         replayMask(historyRef.current, maskCanvasRef.current, previewCanvasRef.current);
@@ -177,6 +208,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
         setRedoSize(0);
         clearCanvas(maskCanvasRef.current);
         clearCanvas(previewCanvasRef.current);
+        setShapePreview(null);
         setError("");
     };
 
@@ -233,12 +265,15 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                                             onPointerMove={moveDraw}
                                             onPointerUp={stopDraw}
                                             onPointerCancel={stopDraw}
-                                            onPointerEnter={(event) => updateBrushPreview(event)}
+                                            onPointerEnter={(event) => {
+                                                if (tool === "brush") updateBrushPreview(event);
+                                            }}
                                             onPointerLeave={() => {
                                                 if (!drawingRef.current.active && !brushAdjustRef.current?.active) setBrushPreview(null);
                                             }}
                                             onContextMenu={(event) => event.preventDefault()}
                                         />
+                                        {shapePreview ? <ShapePreview action={shapePreview} width={image.width} height={image.height} /> : null}
                                     </div>
                                 </>
                             ) : null}
@@ -264,9 +299,20 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                         <div className="mt-2 text-xs leading-5 opacity-55">{t("canvas.editors.maskHint")}</div>
                     </div>
 
+                    <Segmented
+                        block
+                        value={tool}
+                        options={[
+                            { value: "brush", label: <span className="inline-flex items-center gap-1.5"><Brush className="size-4" />{t("canvas.editors.brush")}</span> },
+                            { value: "rectangle", label: <span className="inline-flex items-center gap-1.5"><SquareDashed className="size-4" />{t("canvas.editors.rectangle", { defaultValue: "矩形" })}</span> },
+                            { value: "lasso", label: <span className="inline-flex items-center gap-1.5"><LassoSelect className="size-4" />{t("canvas.editors.lasso", { defaultValue: "套索" })}</span> },
+                        ]}
+                        onChange={(value) => setTool(value as SelectionTool)}
+                    />
+
                     <div className="grid grid-cols-2 gap-2">
                         <Button type={mode === "paint" ? "primary" : "default"} icon={<Brush className="size-4" />} onClick={() => setMode("paint")}>
-                            {t("canvas.editors.brush")}
+                            {t("canvas.editors.selectArea", { defaultValue: "选择区域" })}
                         </Button>
                         <Button type={mode === "erase" ? "primary" : "default"} icon={<Eraser className="size-4" />} onClick={() => setMode("erase")}>
                             {t("canvas.editors.erase")}
@@ -293,13 +339,13 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                         </div>
                     </div>
 
-                    <div className="space-y-2">
+                    {tool === "brush" ? <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                             <span className="font-medium opacity-75">{t("canvas.editors.brushSize")}</span>
                             <span className="font-semibold">{brushSize}px</span>
                         </div>
                         <Slider min={8} max={160} step={2} value={brushSize} onChange={setBrushSize} />
-                    </div>
+                    </div> : null}
 
                     <div className="space-y-2">
                         <div className="text-sm font-medium opacity-75">{t("canvas.editors.editInstructions")}</div>
@@ -366,39 +412,73 @@ function drawMaskStroke(context: CanvasRenderingContext2D, from: { x: number; y:
     context.stroke();
 }
 
-function configureStrokeContext(context: CanvasRenderingContext2D, stroke: MaskStroke) {
+function configureStrokeContext(context: CanvasRenderingContext2D, action: MaskAction) {
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.lineWidth = stroke.size;
-    context.globalCompositeOperation = stroke.mode === "paint" ? "source-over" : "destination-out";
+    context.lineWidth = action.size;
+    context.globalCompositeOperation = action.mode === "paint" ? "source-over" : "destination-out";
     context.strokeStyle = "#000";
     context.fillStyle = "#000";
 }
 
-function configurePreviewStrokeContext(context: CanvasRenderingContext2D, stroke: MaskStroke) {
+function configurePreviewStrokeContext(context: CanvasRenderingContext2D, action: MaskAction) {
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.lineWidth = stroke.size;
-    context.globalCompositeOperation = stroke.mode === "paint" ? "source-over" : "destination-out";
-    context.strokeStyle = maskFillColor;
+    context.lineWidth = action.size;
+    context.globalCompositeOperation = action.mode === "paint" ? "source-over" : "destination-out";
+    context.strokeStyle = action.tool === "brush" ? maskFillColor : maskStrokeColor;
     context.fillStyle = maskFillColor;
 }
 
-function replayMask(strokes: MaskStroke[], maskCanvas: HTMLCanvasElement | null, previewCanvas: HTMLCanvasElement | null) {
+function drawMaskAction(context: CanvasRenderingContext2D, action: MaskAction, preview: boolean) {
+    if (preview) configurePreviewStrokeContext(context, action);
+    else configureStrokeContext(context, action);
+    if (action.tool === "brush") {
+        action.points.forEach((point, index) => drawMaskStroke(context, action.points[index - 1] || point, point, action.size));
+        return;
+    }
+    if (action.tool === "rectangle") {
+        const [start, end = start] = action.points;
+        if (!start) return;
+        context.beginPath();
+        context.rect(start.x, start.y, end.x - start.x, end.y - start.y);
+        context.fill();
+        if (preview) context.stroke();
+        return;
+    }
+    if (action.points.length < 2) return;
+    context.beginPath();
+    context.moveTo(action.points[0].x, action.points[0].y);
+    action.points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+    context.closePath();
+    context.fill();
+    if (preview) context.stroke();
+}
+
+function replayMask(actions: MaskAction[], maskCanvas: HTMLCanvasElement | null, previewCanvas: HTMLCanvasElement | null) {
     const context = maskCanvas?.getContext("2d", { willReadFrequently: true });
     const previewContext = previewCanvas?.getContext("2d");
     if (!maskCanvas || !context || !previewCanvas || !previewContext) return;
     context.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
     previewContext.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-    for (const stroke of strokes) {
-        configureStrokeContext(context, stroke);
-        configurePreviewStrokeContext(previewContext, stroke);
-        stroke.points.forEach((point, index) => {
-            const previous = stroke.points[index - 1] || point;
-            drawMaskStroke(context, previous, point, stroke.size);
-            drawMaskStroke(previewContext, previous, point, stroke.size);
-        });
+    for (const action of actions) {
+        drawMaskAction(context, action, false);
+        drawMaskAction(previewContext, action, true);
     }
+}
+
+function ShapePreview({ action, width, height }: { action: MaskAction; width: number; height: number }) {
+    const points = action.points.map((point) => `${point.x},${point.y}`).join(" ");
+    const [start, end = start] = action.points;
+    return (
+        <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+            {action.tool === "rectangle" && start ? (
+                <rect x={Math.min(start.x, end.x)} y={Math.min(start.y, end.y)} width={Math.abs(end.x - start.x)} height={Math.abs(end.y - start.y)} fill={maskFillColor} stroke={maskStrokeColor} strokeWidth={Math.max(2, 2 / Math.max(width, height) * 1000)} />
+            ) : (
+                <polygon points={points} fill={maskFillColor} stroke={maskStrokeColor} strokeWidth={Math.max(2, 2 / Math.max(width, height) * 1000)} />
+            )}
+        </svg>
+    );
 }
 
 function canvasHasPaint(canvas: HTMLCanvasElement) {
@@ -409,6 +489,15 @@ function canvasHasPaint(canvas: HTMLCanvasElement) {
         if (data[index] > 0) return true;
     }
     return false;
+}
+
+function hasMeaningfulAction(action: MaskAction) {
+    if (action.tool === "brush") return action.points.length > 0;
+    if (action.tool === "rectangle") {
+        const [start, end] = action.points;
+        return Boolean(start && end && Math.abs(end.x - start.x) > 2 && Math.abs(end.y - start.y) > 2);
+    }
+    return action.points.length >= 3;
 }
 
 function buildEditMask(selectionCanvas: HTMLCanvasElement) {

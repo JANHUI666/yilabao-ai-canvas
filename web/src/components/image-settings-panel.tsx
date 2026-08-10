@@ -30,6 +30,18 @@ const aspectOptions = [
     { value: "auto", label: "auto", width: 0, height: 0, icon: "auto" },
 ];
 
+const posterOptions = [
+    { label: "80x180cm", size: "1712x3840", ratio: "4:9", width: 1712, height: 3840 },
+    { label: "60x160cm", size: "1440x3840", ratio: "3:8", width: 1440, height: 3840 },
+    { label: "78x200cm", size: "1504x3840", ratio: "39:100", width: 1504, height: 3840 },
+    { label: "98x200cm", size: "1888x3840", ratio: "49:100", width: 1888, height: 3840 },
+    { label: "120x200cm", size: "2208x3680", ratio: "3:5", width: 2208, height: 3680 },
+    { label: "60x90cm", size: "2336x3504", ratio: "2:3", width: 2336, height: 3504 },
+    { label: "50x70cm", size: "2400x3360", ratio: "5:7", width: 2400, height: 3360 },
+    { label: "45x100cm", size: "1728x3840", ratio: "9:20", width: 1728, height: 3840 },
+    { label: "100x200cm", size: "1920x3840", ratio: "1:2", width: 1920, height: 3840 },
+] as const;
+
 export const imageQualityOptions = qualityOptions.map((item) => ({ value: item.value, get label() { return i18n.t(`settingsPanels.common.${item.labelKey}`); } }));
 export const imageAspectOptions = aspectOptions.map((item) => ({ value: item.size || item.value, label: item.label }));
 
@@ -50,8 +62,9 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
     const transparentBackground = config.background === "transparent";
+    const selectedPoster = posterOptions.find((item) => item.size === activeSize);
     const selectedAspect = aspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
-    const dimensions = readSizeDimensions(activeSize, selectedAspect || aspectOptions[0]);
+    const dimensions = readSizeDimensions(activeSize, selectedPoster || selectedAspect || aspectOptions[0]);
     const selectAspect = (value: string) => {
         const option = aspectOptions.find((item) => item.value === value);
         onConfigChange("size", option?.size || option?.value || "auto");
@@ -121,6 +134,24 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         ))}
                     </div>
                 </div>
+                <div className="space-y-2.5">
+                    <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.posterSizes", { defaultValue: "易拉宝尺寸" })}</SettingTitle>
+                    <div className="grid grid-cols-1 gap-2">
+                        {posterOptions.map((item) => (
+                            <button
+                                key={item.size}
+                                type="button"
+                                className="flex min-h-12 items-center justify-between rounded-xl border px-3 text-left transition hover:opacity-80"
+                                style={{ borderColor: selectedPoster?.size === item.size ? theme.node.text : theme.node.stroke, color: theme.node.text }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={() => onConfigChange("size", item.size)}
+                            >
+                                <span className="font-medium">{item.label}</span>
+                                <span className="text-xs opacity-60">{item.size} · {item.ratio}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <div className="flex items-center justify-between gap-3">
                     <div className="space-y-0.5">
                         <SettingTitle color={theme.node.muted}>{t("settingsPanels.image.transparent")}</SettingTitle>
@@ -166,7 +197,7 @@ export function imageQualityLabel(value: string) {
 }
 
 export function imageSizeLabel(size: string) {
-    return aspectOptions.find((item) => (item.size || item.value) === size || item.value === size)?.label || size;
+    return posterOptions.find((item) => item.size === size)?.label || aspectOptions.find((item) => (item.size || item.value) === size || item.value === size)?.label || size;
 }
 
 function OptionPill({ selected, theme, onClick, children }: { selected: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {

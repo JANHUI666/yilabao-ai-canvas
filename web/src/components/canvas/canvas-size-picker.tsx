@@ -5,6 +5,17 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 const sizeOptions = ["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"];
+const posterSizeOptions = [
+    { value: "1712x3840", label: "80x180cm · 1712x3840" },
+    { value: "1440x3840", label: "60x160cm · 1440x3840" },
+    { value: "1504x3840", label: "78x200cm · 1504x3840" },
+    { value: "1888x3840", label: "98x200cm · 1888x3840" },
+    { value: "2208x3680", label: "120x200cm · 2208x3680" },
+    { value: "2336x3504", label: "60x90cm · 2336x3504" },
+    { value: "2400x3360", label: "50x70cm · 2400x3360" },
+    { value: "1728x3840", label: "45x100cm · 1728x3840" },
+    { value: "1920x3840", label: "100x200cm · 1920x3840" },
+] as const;
 
 type CanvasSizePickerProps = {
     value: string;
@@ -18,7 +29,8 @@ export function CanvasSizePicker({ value, className, onChange }: CanvasSizePicke
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const extraOptions = [value, search.trim()].filter((item) => item && !sizeOptions.includes(item));
-    const options = [...sizeOptions, ...Array.from(new Set(extraOptions))].map((size) => ({ value: size, label: size }));
+    const knownOptions = [...sizeOptions.map((size) => ({ value: size, label: size })), ...posterSizeOptions];
+    const options = [...knownOptions, ...Array.from(new Set(extraOptions)).filter((size) => !knownOptions.some((item) => item.value === size)).map((size) => ({ value: size, label: size }))];
     const selectSize = (next: string) => {
         onChange(next.trim());
         setSearch("");

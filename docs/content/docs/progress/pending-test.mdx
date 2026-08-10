@@ -5,6 +5,10 @@ description: Implemented changes that still need manual verification
 
 # Pending Tests
 
+- First visit: the root URL should open the most recent canvas and create a blank canvas when there is no history. A browser without a saved API Key should automatically open AI image setup, while a browser with a saved Key should not show it again after refresh. Quick setup must keep the OpenAI-compatible protocol and `gpt-image-2`, with the Key stored only in that browser.
+- Poster sizes: the image settings and canvas size picker should show and select 80x180cm (1712x3840), 60x160cm (1440x3840), 78x200cm (1504x3840), 98x200cm (1888x3840), 120x200cm (2208x3680), 60x90cm (2336x3504), 50x70cm (2400x3360), 45x100cm (1728x3840), and 100x200cm (1920x3840), and submit them successfully to `gpt-image-2`.
+- Local AI edits: after uploading an original image, brush, rectangle, and lasso selection should show the red edit area; erase, undo, redo, and mask submission should work; pixels outside the selection must still come from the original after the API result is returned.
+
 The current release needs manual verification in these areas:
 
 - Canvas navigation: the bottom toolbar should switch between Select and Move modes and reflect the active mode with its icon; Select should draw a clearly spaced dashed range whose dash length, gap, and stroke width remain visually constant at every zoom level, while Move should pan from either the background or a node. Clicking blank canvas space in either mode should deselect the current node and close its top toolbar and lower prompt panel. Holding Control or Space should temporarily invert the active tool without changing the toolbar mode: Select becomes Move, and Move becomes range selection. After clicking any canvas-page button, pressing Space should only invert the tool and must not trigger that button again. Middle-button panning and additive node selection with Shift/Cmd should continue to work, while Space remains available inside text inputs and editable content.

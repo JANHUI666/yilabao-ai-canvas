@@ -13,6 +13,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const config = useConfigStore((state) => state.config);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const autoPromptedMissingConfig = useRef(false);
 
     usePromptSourceScheduler();
 
@@ -48,6 +49,15 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         openConfigDialog(false);
         message.success(t("config.importedDirectConfig"));
     }, [config.channels, message, openConfigDialog, t, updateConfig]);
+
+    useEffect(() => {
+        if (autoPromptedMissingConfig.current || handledConfigParams.current) return;
+        const searchParams = new URLSearchParams(window.location.search);
+        if (searchParams.has("baseUrl") || searchParams.has("baseurl") || searchParams.has("apiKey") || searchParams.has("apikey")) return;
+        if (config.channels.some((channel) => channel.apiKey.trim())) return;
+        autoPromptedMissingConfig.current = true;
+        openConfigDialog(false, "channels");
+    }, [config.channels, openConfigDialog]);
 
     return <>{children}</>;
 }
