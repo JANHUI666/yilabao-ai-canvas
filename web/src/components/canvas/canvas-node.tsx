@@ -356,7 +356,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             )}
 
             <div
-                className="relative h-full w-full overflow-visible rounded-3xl border-2"
+                className={`relative h-full w-full overflow-visible border-2 ${data.type === CanvasNodeType.Image ? "rounded-none" : "rounded-3xl"}`}
                 style={{
                     background: isGroup ? `${theme.toolbar.panel}66` : hasImageContent || hasVideoContent || transparentBg ? "transparent" : theme.node.fill,
                     borderColor: isGroup ? (isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke) : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : transparentBg ? "transparent" : theme.node.stroke,
@@ -673,7 +673,7 @@ function ImageContent({
                       .filter((image) => image.id !== primaryImageId)
                       .map((image, index) => <ExpandedImageCard key={image.id} node={node} image={image} index={index} onSetPrimary={() => onSetBatchPrimary?.(image.id)} onDuplicate={() => onDuplicateBatchImage?.(image.id)} onDownload={() => onDownloadBatchImage?.(image.id)} onRetry={() => onRetryBatchImage?.(image.id)} onDelete={() => onDeleteBatchImage?.(image.id)} />)
                 : null}
-            <div className="h-full w-full overflow-hidden rounded-3xl">
+            <div className="h-full w-full overflow-hidden rounded-none">
                 {primaryContent ? (
                     <img
                         src={primaryContent}
@@ -729,7 +729,7 @@ function ExpandedImageCard({ node, image, index, onSetPrimary, onDuplicate, onDo
 
     return (
         <div
-            className="absolute z-20 overflow-hidden rounded-3xl border shadow-[0_18px_50px_rgba(28,25,23,.18)]"
+            className="absolute z-20 overflow-hidden rounded-none border shadow-[0_18px_50px_rgba(28,25,23,.18)]"
             style={
                 {
                     left: x,

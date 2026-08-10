@@ -12,13 +12,12 @@ import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-
 import { uploadImage } from "@/services/image-storage";
 import { uploadMediaFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
-import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { compositeMaskedImage, getDataUrlByteSize, prepareMaskedEdit, readImageMeta } from "@/lib/image-utils";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
-import { compositeMaskedImage } from "@/lib/image-utils";
 import { App, Button, Modal } from "antd";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "@/constant/canvas";
 import { ActiveConnectionPath, ConnectionPath } from "@/components/canvas/canvas-connections";
@@ -1704,7 +1703,7 @@ function InfiniteCanvasPage() {
                 return;
             }
             const userPrompt = payload.prompt.trim();
-            const prompt = t("canvas.projectPage.maskPrompt", { prompt: userPrompt });
+            const prompt = `${t("canvas.projectPage.maskPrompt", { prompt: userPrompt })} 如果是替换文字，请在选区原位置清晰、准确地写出指定文字，并保持原有字体风格、颜色、字号和排版。`;
             const childId = nanoid();
             const source = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
             const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
@@ -1728,8 +1727,11 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, { signal: controller.signal }).then((items) => items[0]);
-                const mergedDataUrl = await compositeMaskedImage(source.dataUrl, image.dataUrl, payload.maskDataUrl);
+                const prepared = await prepareMaskedEdit(source.dataUrl, payload.maskDataUrl);
+                const editConfig = { ...generationConfig, size: prepared.region.width * prepared.region.height >= 655360 ? `${prepared.region.width}x${prepared.region.height}` : "auto" };
+                const editSource = { ...source, name: `${node.title || node.id}-selection.png`, type: "image/png", dataUrl: prepared.sourceDataUrl, storageKey: undefined };
+                const image = await requestEdit(editConfig, prompt, [editSource], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: prepared.maskDataUrl }, { signal: controller.signal }).then((items) => items[0]);
+                const mergedDataUrl = await compositeMaskedImage(source.dataUrl, image.dataUrl, prepared.maskDataUrl, prepared.region);
                 const uploaded = await uploadImage(mergedDataUrl);
                 const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));

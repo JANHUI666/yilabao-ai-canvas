@@ -857,7 +857,10 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     }
     const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
     files.forEach((file) => formData.append("image", file));
-    if (mask) formData.set("mask", dataUrlToFile(mask));
+    if (mask) {
+        formData.set("mask", dataUrlToFile(mask));
+        formData.set("input_fidelity", "high");
+    }
 
     try {
         const response = await axios.post<ImageApiResponse>(aiApiUrl(requestConfig, "/images/edits"), formData, { headers: aiHeaders(requestConfig), signal: options?.signal });
