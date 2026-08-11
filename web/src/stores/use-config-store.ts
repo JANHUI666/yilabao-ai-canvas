@@ -83,18 +83,15 @@ export const defaultConfig: AiConfig = {
             apiFormat: "openai",
             models: [
                 { name: "gpt-image-2", capability: "image" },
-                { name: "grok-imagine-video", capability: "video" },
-                { name: "gpt-5.5", capability: "text" },
-                { name: "gpt-4o-mini-tts", capability: "audio" },
             ],
         },
     ],
     model: "default::gpt-image-2",
     imageModel: "default::gpt-image-2",
     imageFallbackModel: "",
-    videoModel: "default::grok-imagine-video",
-    textModel: "default::gpt-5.5",
-    audioModel: "default::gpt-4o-mini-tts",
+    videoModel: "",
+    textModel: "",
+    audioModel: "",
     audioVoice: "alloy",
     audioFormat: "mp3",
     audioSpeed: "1",
@@ -105,7 +102,7 @@ export const defaultConfig: AiConfig = {
     videoWatermark: "false",
     systemPrompt: "",
     reasoningEffort: "auto",
-    models: ["default::gpt-image-2", "default::grok-imagine-video", "default::gpt-5.5", "default::gpt-4o-mini-tts"],
+    models: ["default::gpt-image-2"],
     quality: "auto",
     size: "1:1",
     background: "",
@@ -253,15 +250,24 @@ export const useConfigStore = create<ConfigStore>()(
                     },
                 };
             },
-            version: 1,
+            version: 2,
             migrate: (persisted, version) => {
-                if (version >= 1) return persisted as ConfigStore;
+                if (version >= 2) return persisted as ConfigStore;
                 const state = (persisted || {}) as Partial<ConfigStore>;
+                const previousConfig = (state.config || {}) as Partial<AiConfig>;
                 return {
                     ...state,
                     config: {
                         ...defaultConfig,
-                        ...(state.config || {}),
+                        ...previousConfig,
+                        channels: Array.isArray(previousConfig.channels)
+                            ? previousConfig.channels.map((channel) => ({ ...channel, models: [{ name: "gpt-image-2", capability: "image" as const }] }))
+                            : defaultConfig.channels,
+                        models: [],
+                        videoModel: "",
+                        textModel: "",
+                        audioModel: "",
+                        count: "1",
                         canvasImageCount: "1",
                     },
                 } as ConfigStore;

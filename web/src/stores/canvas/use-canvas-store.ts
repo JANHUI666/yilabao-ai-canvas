@@ -123,6 +123,28 @@ export const useCanvasStore = create<CanvasStore>()(
         {
             name: CANVAS_STORE_KEY,
             storage: canvasStorage,
+            version: 1,
+            migrate: (persisted) => {
+                const state = (persisted || {}) as PersistedCanvasState;
+                return {
+                    ...state,
+                    projects: (state.projects || []).map((project) => ({
+                        ...project,
+                        nodes: project.nodes.map((node) =>
+                            node.type === "config"
+                                ? {
+                                      ...node,
+                                      metadata: {
+                                          ...node.metadata,
+                                          count: 1,
+                                          generationMode: "image",
+                                      },
+                                  }
+                                : node,
+                        ),
+                    })),
+                } as CanvasStore;
+            },
             partialize: (state) =>
                 ({
                     projects: state.projects,
