@@ -216,6 +216,10 @@ form.set("response_format", "b64_json");
 for (const dataUrl of images) {
   form.append("image", await (await fetch(dataUrl)).blob(), "ref.png");
 }
+if (params.mask) {
+  form.set("mask", await (await fetch(params.mask)).blob(), "mask.png");
+  form.set("input_fidelity", "high");
+}
 const edited = await request({
   method: "post",
   url: \`\${baseUrl}/v1/images/edits\`,

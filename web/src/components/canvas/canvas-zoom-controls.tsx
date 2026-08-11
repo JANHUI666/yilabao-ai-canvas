@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Compass, Focus, HelpCircle } from "lucide-react";
+import { Compass, Focus, HelpCircle, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
 import { Button, Modal, Tooltip } from "antd";
 import { useTranslation } from "react-i18next";
@@ -39,11 +39,14 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                 <Tooltip title={t("canvas.resetView")}>
                     <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label={t("canvas.resetView")} />
                 </Tooltip>
+                <Tooltip title={t("canvas.zoomOut", "Zoom out")}>
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<ZoomOut className="size-4" />} onClick={() => onScaleChange(scale - 0.1)} aria-label={t("canvas.zoomOut")} />
+                </Tooltip>
                 <Tooltip title={t("canvas.zoom")}>
                     <input
                         type="range"
                         min="5"
-                        max="500"
+                        max="800"
                         step="1"
                         value={Math.round(scale * 100)}
                         className="w-24"
@@ -51,6 +54,9 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                         onChange={(event) => onScaleChange(Number(event.target.value) / 100)}
                         aria-label={t("canvas.zoom")}
                     />
+                </Tooltip>
+                <Tooltip title={t("canvas.zoomIn", "Zoom in")}>
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<ZoomIn className="size-4" />} onClick={() => onScaleChange(scale + 0.1)} aria-label={t("canvas.zoomIn")} />
                 </Tooltip>
                 <span className="w-10 text-right text-xs tabular-nums" style={{ color: theme.node.muted }}>
                     {Math.round(scale * 100)}%

@@ -130,8 +130,23 @@ export async function compositeMaskedImage(originalDataUrl: string, generatedDat
     const editedContext = editedLayer.getContext("2d");
     if (!editedContext) return canvas.toDataURL("image/png");
     editedContext.drawImage(generated, 0, 0, target.width, target.height);
-    editedContext.globalCompositeOperation = "destination-out";
-    editedContext.drawImage(mask, 0, 0, target.width, target.height);
+    // Convert the API mask (opaque outside, transparent inside) into an
+    // explicit editable-alpha mask before compositing. This keeps every
+    // unselected poster pixel from the original, even when the provider
+    // returns a full regenerated crop.
+    const editableMask = document.createElement("canvas");
+    editableMask.width = target.width;
+    editableMask.height = target.height;
+    const editableContext = editableMask.getContext("2d", { willReadFrequently: true });
+    if (!editableContext) return canvas.toDataURL("image/png");
+    editableContext.drawImage(mask, 0, 0, target.width, target.height);
+    const maskPixels = editableContext.getImageData(0, 0, target.width, target.height);
+    for (let index = 3; index < maskPixels.data.length; index += 4) {
+        maskPixels.data[index] = 255 - maskPixels.data[index];
+    }
+    editableContext.putImageData(maskPixels, 0, 0);
+    editedContext.globalCompositeOperation = "destination-in";
+    editedContext.drawImage(editableMask, 0, 0);
     context.drawImage(editedLayer, target.x, target.y);
     return canvas.toDataURL("image/png");
 }

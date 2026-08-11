@@ -1,4 +1,4 @@
-import { App, Button, Form, Input, Modal, Progress, Select, Tabs } from "antd";
+import { App, Button, Form, Input, Modal, Progress, Select, Switch, Tabs } from "antd";
 import type { TFunction } from "i18next";
 import { Cloud, Download, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -12,8 +12,9 @@ import type { AppLocale } from "@/i18n";
 import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
+import { checkLocalUpscayl } from "@/services/upscayl";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { createModelChannel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { createModelChannel, encodeChannelModel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -36,6 +37,7 @@ const modelGroups: ModelGroup[] = [
 ];
 
 const webdavDomainKeys: AppSyncDomainKey[] = ["canvas", "assets", "image-workbench", "video-workbench"];
+const IMAGE_FALLBACK_CHANNEL_ID = "image-fallback";
 function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProgress> {
     return webdavDomainKeys.reduce(
         (progress, key) => ({
@@ -53,6 +55,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [editingChannelId, setEditingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
+    const [testingUpscayl, setTestingUpscayl] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
     const [webdavDomainProgress, setWebdavDomainProgress] = useState(createWebdavDomainProgress);
@@ -66,6 +69,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const webdavReady = Boolean(webdav.url.trim());
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     const primaryChannel = config.channels[0] || null;
+    const fallbackChannel = config.channels.find((channel) => channel.id === IMAGE_FALLBACK_CHANNEL_ID) || null;
+    const fallbackEnabled = Boolean(config.imageFallbackModel && fallbackChannel);
     const locale = i18n.resolvedLanguage as AppLocale;
     useEffect(() => setActiveTab(initialTab), [initialTab]);
 
@@ -108,6 +113,34 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                     : channel,
             ),
         );
+    };
+
+    const updateFallbackChannel = (patch: Partial<ModelChannel> = {}) => {
+        const channel = {
+            ...(fallbackChannel || createModelChannel({ id: IMAGE_FALLBACK_CHANNEL_ID, name: t("config.quickSetup.fallbackTitle"), apiFormat: "openai", models: [{ name: "gpt-image-2", capability: "image" }] })),
+            apiFormat: "openai" as const,
+            models: [{ name: "gpt-image-2", capability: "image" as const }],
+            ...patch,
+        };
+        const channels = fallbackChannel ? config.channels.map((item) => (item.id === IMAGE_FALLBACK_CHANNEL_ID ? channel : item)) : [...config.channels, channel];
+        saveConfig({ ...withChannels(config, channels), imageFallbackModel: encodeChannelModel(IMAGE_FALLBACK_CHANNEL_ID, "gpt-image-2") });
+    };
+
+    const setFallbackEnabled = (enabled: boolean) => {
+        if (enabled) updateFallbackChannel();
+        else updateConfig("imageFallbackModel", "");
+    };
+
+    const testUpscayl = async () => {
+        setTestingUpscayl(true);
+        try {
+            await checkLocalUpscayl();
+            message.success(t("config.quickSetup.upscaylReady"));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t("config.quickSetup.upscaylUnavailable"));
+        } finally {
+            setTestingUpscayl(false);
+        }
     };
 
     const addChannel = () => {
@@ -207,6 +240,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                         <div className="mt-1 text-xs leading-5 text-stone-500">{t("config.quickSetup.description")}</div>
                                     </div>
                                     <div className="grid gap-3 md:grid-cols-2">
+                                        <div className="text-sm font-semibold md:col-span-2">{t("config.quickSetup.primaryTitle")}</div>
                                         <label className="block md:col-span-2">
                                             <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.baseUrl")}</span>
                                             <Input value={primaryChannel?.baseUrl || ""} onChange={(event) => updatePrimaryChannel({ baseUrl: event.target.value })} placeholder="https://api.qiuqiutoken.com/v1" />
@@ -219,6 +253,35 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                             <span className="mb-1 block text-sm font-medium">{t("config.quickSetup.model")}</span>
                                             <Input value="gpt-image-2" readOnly />
                                         </label>
+                                    </div>
+                                    <div className="my-4 border-t border-stone-200 dark:border-stone-800" />
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-semibold">{t("config.quickSetup.fallbackTitle")}</div>
+                                            <div className="mt-1 text-xs text-stone-500">{t("config.quickSetup.fallbackDescription")}</div>
+                                        </div>
+                                        <Switch checked={fallbackEnabled} onChange={setFallbackEnabled} />
+                                    </div>
+                                    {fallbackEnabled ? (
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <label className="block md:col-span-2">
+                                                <span className="mb-1 block text-sm font-medium">{t("config.channelEditor.baseUrl")}</span>
+                                                <Input value={fallbackChannel?.baseUrl || ""} onChange={(event) => updateFallbackChannel({ baseUrl: event.target.value })} placeholder="https://api.example.com/v1" />
+                                            </label>
+                                            <label className="block">
+                                                <span className="mb-1 block text-sm font-medium">API Key</span>
+                                                <Input.Password autoComplete="off" value={fallbackChannel?.apiKey || ""} onChange={(event) => updateFallbackChannel({ apiKey: event.target.value })} placeholder={t("config.quickSetup.apiKeyPlaceholder")} />
+                                            </label>
+                                            <label className="block">
+                                                <span className="mb-1 block text-sm font-medium">{t("config.quickSetup.model")}</span>
+                                                <Input value="gpt-image-2" readOnly />
+                                            </label>
+                                        </div>
+                                    ) : null}
+                                    <div className="mt-4 border-t border-stone-200 pt-4 dark:border-stone-800">
+                                        <Button icon={<Wifi className="size-4" />} loading={testingUpscayl} onClick={() => void testUpscayl()}>
+                                            {t("config.quickSetup.testUpscayl")}
+                                        </Button>
                                     </div>
                                 </section>
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -405,10 +468,17 @@ function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
     return {
         ...next,
         imageModel: pickDefaultModel(next, "image", config.imageModel),
+        imageFallbackModel: pickOptionalModel(next, "image", config.imageFallbackModel),
         videoModel: pickDefaultModel(next, "video", config.videoModel),
         textModel: pickDefaultModel(next, "text", config.textModel),
         audioModel: pickDefaultModel(next, "audio", config.audioModel),
     };
+}
+
+function pickOptionalModel(config: AiConfig, capability: ModelCapability, current: string) {
+    const options = selectableModelsByCapability(config, capability);
+    const normalized = normalizeModelOptionValue(current, config.channels);
+    return options.includes(normalized) ? normalized : "";
 }
 
 function pickDefaultModel(config: AiConfig, capability: ModelCapability, current: string) {

@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { imageToDataUrl } from "@/services/image-storage";
+import { upscaleReturnedImage } from "@/services/upscayl";
 import type { ReferenceImage } from "@/types/image";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
@@ -94,7 +95,8 @@ type GeminiPayload = {
     promptFeedback?: { blockReason?: string };
 };
 type GeminiStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; error?: string };
-type RequestOptions = { signal?: AbortSignal };
+type RequestOptions = { signal?: AbortSignal; skipUpscale?: boolean };
+type GeneratedImageResult = { id: string; dataUrl: string; upscaled?: boolean; upscaleError?: string };
 
 const QUALITY_BASE: Record<string, number> = {
     low: 1024,
@@ -714,7 +716,7 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
     return images;
 }
 
-export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
+async function requestGenerationOnce(config: AiConfig, prompt: string, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const script = resolveModelScript(config, config.model || config.imageModel);
@@ -772,12 +774,15 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
     }
 }
 
-export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
+async function requestEditOnce(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
     const script = resolveModelScript(config, config.model || config.imageModel);
-    if (script) {
+    // Mask edits must use the native multipart endpoint. Existing custom
+    // scripts may predate mask support and silently turn a local edit into a
+    // full image-to-image generation.
+    if (script && !mask) {
         const quality = normalizeQuality(config.quality);
         const requestSize = resolveRequestSize(quality, config.size);
         const background = normalizeBackground(config.background);
@@ -869,6 +874,52 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     } catch (error) {
         throw new Error(readAxiosError(error, apiText("requestFailed")));
     }
+}
+
+export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions): Promise<GeneratedImageResult[]> {
+    const images = await requestWithImageFallback(config, (requestConfig) => requestGenerationOnce(requestConfig, prompt, options), options);
+    return processReturnedImages(images, options);
+}
+
+export async function requestEdit(config: AiConfig, prompt: string, references: ReferenceImage[], mask?: ReferenceImage, options?: RequestOptions): Promise<GeneratedImageResult[]> {
+    const images = await requestWithImageFallback(config, (requestConfig) => requestEditOnce(requestConfig, prompt, references, mask, options), options);
+    return mask ? images : processReturnedImages(images, options);
+}
+
+async function requestWithImageFallback<T>(config: AiConfig, request: (requestConfig: AiConfig) => Promise<T>, options?: RequestOptions) {
+    try {
+        return await request(config);
+    } catch (primaryError) {
+        if (isCanceledRequest(primaryError, options?.signal)) throw primaryError;
+        const fallbackModel = config.imageFallbackModel?.trim();
+        const primaryModel = (config.model || config.imageModel).trim();
+        if (!fallbackModel || fallbackModel === primaryModel) throw primaryError;
+        const fallbackRequestConfig = resolveModelRequestConfig(config, fallbackModel);
+        if (!fallbackRequestConfig.baseUrl.trim() || !fallbackRequestConfig.apiKey.trim()) throw primaryError;
+        try {
+            return await request({ ...config, model: fallbackModel, imageModel: fallbackModel });
+        } catch (fallbackError) {
+            if (isCanceledRequest(fallbackError, options?.signal)) throw fallbackError;
+            const primaryMessage = primaryError instanceof Error ? primaryError.message : apiText("requestFailed");
+            const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : apiText("requestFailed");
+            throw new Error(`${apiText("requestFailed")}（4K 主供应商：${primaryMessage}；备用供应商：${fallbackMessage}）`);
+        }
+    }
+}
+
+async function processReturnedImages(images: GeneratedImageResult[], options?: RequestOptions) {
+    if (options?.skipUpscale) return images;
+    const processed: GeneratedImageResult[] = [];
+    for (const image of images) {
+        const result = await upscaleReturnedImage(image.dataUrl, options?.signal);
+        processed.push({ ...image, dataUrl: result.dataUrl, upscaled: result.upscaled, ...(result.error ? { upscaleError: result.error } : {}) });
+    }
+    return processed;
+}
+
+function isCanceledRequest(error: unknown, signal?: AbortSignal) {
+    if (signal?.aborted || axios.isCancel(error)) return true;
+    return error instanceof Error && (error.name === "AbortError" || error.message === apiText("requestCanceled"));
 }
 
 export async function requestImageQuestion(config: AiConfig, messages: AiTextMessage[], onDelta: (text: string) => void, options?: RequestOptions) {

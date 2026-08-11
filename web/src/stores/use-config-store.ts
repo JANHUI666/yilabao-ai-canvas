@@ -32,6 +32,7 @@ export type AiConfig = {
     channels: ModelChannel[];
     model: string;
     imageModel: string;
+    imageFallbackModel: string;
     videoModel: string;
     textModel: string;
     audioModel: string;
@@ -90,6 +91,7 @@ export const defaultConfig: AiConfig = {
     ],
     model: "default::gpt-image-2",
     imageModel: "default::gpt-image-2",
+    imageFallbackModel: "",
     videoModel: "default::grok-imagine-video",
     textModel: "default::gpt-5.5",
     audioModel: "default::gpt-4o-mini-tts",
@@ -108,7 +110,7 @@ export const defaultConfig: AiConfig = {
     size: "1:1",
     background: "",
     count: "1",
-    canvasImageCount: "3",
+    canvasImageCount: "1",
 };
 
 export const defaultWebdavSyncConfig: WebdavSyncConfig = {
@@ -234,6 +236,7 @@ export const useConfigStore = create<ConfigStore>()(
                         channels,
                         models,
                         imageModel: normalizeModelOptionValue(config.imageModel || config.model, channels),
+                        imageFallbackModel: normalizeModelOptionValue(config.imageFallbackModel, channels),
                         videoModel: normalizeModelOptionValue(config.videoModel, channels),
                         textModel: normalizeModelOptionValue(config.textModel || config.model, channels),
                         audioModel: normalizeModelOptionValue(config.audioModel || defaultConfig.audioModel, channels),
@@ -246,9 +249,22 @@ export const useConfigStore = create<ConfigStore>()(
                         vquality: config.vquality || "720",
                         videoGenerateAudio: config.videoGenerateAudio || "true",
                         videoWatermark: config.videoWatermark || "false",
-                        canvasImageCount: config.canvasImageCount || "3",
+                        canvasImageCount: config.canvasImageCount || "1",
                     },
                 };
+            },
+            version: 1,
+            migrate: (persisted, version) => {
+                if (version >= 1) return persisted as ConfigStore;
+                const state = (persisted || {}) as Partial<ConfigStore>;
+                return {
+                    ...state,
+                    config: {
+                        ...defaultConfig,
+                        ...(state.config || {}),
+                        canvasImageCount: "1",
+                    },
+                } as ConfigStore;
             },
         },
     ),

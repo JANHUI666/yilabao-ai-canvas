@@ -260,7 +260,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                                             ref={previewCanvasRef}
                                             width={image.width}
                                             height={image.height}
-                                            className="absolute inset-0 h-full w-full cursor-none touch-none"
+                                            className={`absolute inset-0 h-full w-full touch-none ${tool === "brush" ? "cursor-none" : "cursor-crosshair"}`}
                                             onPointerDown={startDraw}
                                             onPointerMove={moveDraw}
                                             onPointerUp={stopDraw}

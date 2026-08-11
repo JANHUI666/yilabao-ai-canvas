@@ -13,6 +13,7 @@ import { ClientRootInit } from "@/components/layout/client-root-init";
 import type { AppLocale } from "@/i18n";
 import { getAntThemeConfig } from "@/lib/app-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { UPSCAYL_WARNING_EVENT } from "@/services/upscayl";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -46,6 +47,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <ConfigProvider locale={locale === "zh-CN" ? zhCN : enUS} theme={getAntThemeConfig(dark)}>
             <ProConfigProvider dark={dark}>
                 <App>
+                    <UpscaylWarningListener />
                     <QueryClientProvider client={queryClient}>
                         <ClientRootInit>{children}</ClientRootInit>
                     </QueryClientProvider>
@@ -53,4 +55,20 @@ export function AppProviders({ children }: { children: ReactNode }) {
             </ProConfigProvider>
         </ConfigProvider>
     );
+}
+
+function UpscaylWarningListener() {
+    const { message } = App.useApp();
+    const { t } = useTranslation();
+
+    useEffect(() => {
+        const onWarning = (event: Event) => {
+            const detail = event instanceof CustomEvent && typeof event.detail === "string" ? `：${event.detail}` : "";
+            message.warning({ key: "upscayl-warning", content: `${t("config.quickSetup.upscaylUnavailable")}${detail}`, duration: 8 });
+        };
+        window.addEventListener(UPSCAYL_WARNING_EVENT, onWarning);
+        return () => window.removeEventListener(UPSCAYL_WARNING_EVENT, onWarning);
+    }, [message, t]);
+
+    return null;
 }
