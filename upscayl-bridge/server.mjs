@@ -6,16 +6,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const HOST = "127.0.0.1";
-const PORT = Number(process.env.UPSCAYL_BRIDGE_PORT || 8766);
+const PORT = Number(process.env.UPSCAYL_BRIDGE_PORT || 8767);
 const UPSCAYL_EXE = process.env.UPSCAYL_EXE || "C:\\Program Files\\Upscayl\\resources\\bin\\upscayl-bin.exe";
 const UPSCAYL_MODELS = process.env.UPSCAYL_MODELS || "C:\\Program Files\\Upscayl\\resources\\models";
 const MAX_BODY_BYTES = 80 * 1024 * 1024;
 const PROCESS_TIMEOUT_MS = 30 * 60 * 1000;
+const ALLOWED_ORIGINS = new Set(["https://janhui666.github.io"]);
 
 let workQueue = Promise.resolve();
 
 const server = createServer(async (request, response) => {
-    setCorsHeaders(response);
+    if (!setCorsHeaders(request, response)) {
+        sendJson(response, 403, { error: "此网页无权访问本机 Upscayl 服务。" });
+        return;
+    }
     if (request.method === "OPTIONS") {
         response.writeHead(204).end();
         return;
@@ -58,12 +62,17 @@ server.listen(PORT, HOST, () => {
     console.log("请保持此窗口打开，然后回到易拉宝 AI 画布使用。");
 });
 
-function setCorsHeaders(response) {
-    response.setHeader("Access-Control-Allow-Origin", "*");
+function setCorsHeaders(request, response) {
+    const origin = request.headers.origin;
+    const isLocalOrigin = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin || "");
+    if (origin && !ALLOWED_ORIGINS.has(origin) && !isLocalOrigin) return false;
+    if (origin) response.setHeader("Access-Control-Allow-Origin", origin);
     response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type");
     response.setHeader("Access-Control-Allow-Private-Network", "true");
+    response.setHeader("Vary", "Origin, Access-Control-Request-Private-Network");
     response.setHeader("Cache-Control", "no-store");
+    return true;
 }
 
 function sendJson(response, status, payload) {

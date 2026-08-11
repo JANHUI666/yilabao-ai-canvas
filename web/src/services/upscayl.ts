@@ -1,4 +1,4 @@
-const DEFAULT_UPSCAYL_BRIDGE_URL = "http://127.0.0.1:8766";
+const DEFAULT_UPSCAYL_BRIDGE_URL = "http://127.0.0.1:8767";
 const UPSCAYL_BRIDGE_URL_KEY = "infinite-canvas:upscayl-bridge-url";
 export const UPSCAYL_WARNING_EVENT = "infinite-canvas:upscayl-warning";
 
