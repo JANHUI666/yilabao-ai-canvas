@@ -370,7 +370,7 @@ export default {
             description: "每位同事只需填写自己的 API Key。Key 只保存在当前浏览器，不会上传到本网站。",
             primaryTitle: "4K 主供应商",
             fallbackTitle: "4K 备用供应商",
-            fallbackDescription: "主供应商请求失败时自动切换，模型固定为 gpt-image-2。",
+            fallbackDescription: "主供应商请求失败时自动切换，主、备用模型可以分别填写。",
             testUpscayl: "检测本机 Upscayl x2",
             upscaylReady: "本机 Upscayl x2 已连接",
             upscaylUnavailable: "本机 Upscayl x2 未连接",

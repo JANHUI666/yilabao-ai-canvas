@@ -66,6 +66,8 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     const primaryChannel = config.channels[0] || null;
     const fallbackChannel = config.channels.find((channel) => channel.id === IMAGE_FALLBACK_CHANNEL_ID) || null;
+    const primaryModel = primaryChannel?.models[0]?.name || "gpt-image-2";
+    const fallbackModel = fallbackChannel?.models[0]?.name || "gpt-image-2";
     const fallbackEnabled = Boolean(config.imageFallbackModel && fallbackChannel);
     const locale = i18n.resolvedLanguage as AppLocale;
     useEffect(() => setActiveTab(initialTab), [initialTab]);
@@ -103,7 +105,6 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                     ? {
                           ...channel,
                           apiFormat: "openai",
-                          models: [{ name: "gpt-image-2", capability: "image" }],
                           ...patch,
                       }
                     : channel,
@@ -111,15 +112,29 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
         );
     };
 
+    const updatePrimaryModel = (name: string) => {
+        const model = name.trim();
+        const selectedModel = model || "gpt-image-2";
+        const channelId = primaryChannel?.id || "default";
+        updatePrimaryChannel({ models: [{ name: selectedModel, capability: "image" }] });
+        updateConfig("model", encodeChannelModel(channelId, selectedModel));
+        updateConfig("imageModel", encodeChannelModel(channelId, selectedModel));
+    };
+
     const updateFallbackChannel = (patch: Partial<ModelChannel> = {}) => {
         const channel = {
             ...(fallbackChannel || createModelChannel({ id: IMAGE_FALLBACK_CHANNEL_ID, name: t("config.quickSetup.fallbackTitle"), apiFormat: "openai", models: [{ name: "gpt-image-2", capability: "image" }] })),
             apiFormat: "openai" as const,
-            models: [{ name: "gpt-image-2", capability: "image" as const }],
             ...patch,
         };
         const channels = fallbackChannel ? config.channels.map((item) => (item.id === IMAGE_FALLBACK_CHANNEL_ID ? channel : item)) : [...config.channels, channel];
-        saveConfig({ ...withChannels(config, channels), imageFallbackModel: encodeChannelModel(IMAGE_FALLBACK_CHANNEL_ID, "gpt-image-2") });
+        const selectedModel = channel.models[0]?.name?.trim() || "gpt-image-2";
+        saveConfig({ ...withChannels(config, channels), imageFallbackModel: encodeChannelModel(IMAGE_FALLBACK_CHANNEL_ID, selectedModel) });
+    };
+
+    const updateFallbackModel = (name: string) => {
+        const model = name.trim();
+        updateFallbackChannel({ models: [{ name: model || "gpt-image-2", capability: "image" }] });
     };
 
     const setFallbackEnabled = (enabled: boolean) => {
@@ -247,7 +262,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                         </label>
                                         <label className="block">
                                             <span className="mb-1 block text-sm font-medium">{t("config.quickSetup.model")}</span>
-                                            <Input value="gpt-image-2" readOnly />
+                                            <Input value={primaryModel} onChange={(event) => updatePrimaryModel(event.target.value)} placeholder="gpt-image-2" />
                                         </label>
                                     </div>
                                     <div className="my-4 border-t border-stone-200 dark:border-stone-800" />
@@ -270,7 +285,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                                             </label>
                                             <label className="block">
                                                 <span className="mb-1 block text-sm font-medium">{t("config.quickSetup.model")}</span>
-                                                <Input value="gpt-image-2" readOnly />
+                                                <Input value={fallbackModel} onChange={(event) => updateFallbackModel(event.target.value)} placeholder="gpt-image-2" />
                                             </label>
                                         </div>
                                     ) : null}

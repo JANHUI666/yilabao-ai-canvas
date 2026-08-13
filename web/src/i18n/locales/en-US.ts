@@ -370,7 +370,7 @@ export default {
             description: "Each teammate only needs to enter their own API Key. The Key stays in this browser and is not uploaded to this site.",
             primaryTitle: "Primary 4K provider",
             fallbackTitle: "Fallback 4K provider",
-            fallbackDescription: "Used automatically when the primary provider fails. The model is fixed to gpt-image-2.",
+            fallbackDescription: "Used automatically when the primary provider fails. Primary and fallback models can be configured separately.",
             testUpscayl: "Check local Upscayl x2",
             upscaylReady: "Local Upscayl x2 is connected",
             upscaylUnavailable: "Local Upscayl x2 is not connected",
