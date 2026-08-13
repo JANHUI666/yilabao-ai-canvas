@@ -4,7 +4,7 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "@/types/canvas";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPromptImage } from "@/types/canvas";
 import { getGenerationResourceNodes } from "@/lib/canvas/canvas-resource-references";
 
 export type NodeGenerationContext = {
@@ -32,14 +32,22 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
     const inputs = buildNodeGenerationInputs(nodeId, nodes, connections);
     const sourceNode = nodes.find((node) => node.id === nodeId);
     if (sourceNode?.type === CanvasNodeType.Config && Boolean(sourceNode.metadata?.composerContent?.trim())) {
-        return buildComposerGenerationContext(inputs, prompt);
+        const context = buildComposerGenerationContext(inputs, prompt);
+        const promptImages = (sourceNode.metadata?.promptImages || []).map(readPromptImage);
+        return {
+            ...context,
+            referenceImages: [...context.referenceImages, ...promptImages],
+            imageCount: context.imageCount + promptImages.length,
+        };
     }
 
     const upstreamText = inputs
         .map((input) => input.text)
         .filter(Boolean)
         .join("\n\n");
-    const referenceImages = inputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+    const connectedImages = inputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+    const promptImages = (sourceNode?.metadata?.promptImages || []).map(readPromptImage);
+    const referenceImages = [...connectedImages, ...promptImages];
     const referenceVideos = inputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
     const referenceAudios = inputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
 
@@ -166,6 +174,16 @@ function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
         type: node.metadata.mimeType || "image/png",
         dataUrl: node.metadata.content,
         storageKey: node.metadata.storageKey,
+    };
+}
+
+function readPromptImage(image: CanvasPromptImage): ReferenceImage {
+    return {
+        id: image.id,
+        name: image.name,
+        type: image.type || "image/png",
+        dataUrl: image.previewUrl,
+        storageKey: image.storageKey,
     };
 }
 

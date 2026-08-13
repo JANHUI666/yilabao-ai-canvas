@@ -37,6 +37,17 @@ export type CanvasNodeImage = {
     mimeType: string;
 };
 
+export type CanvasPromptImage = {
+    id: string;
+    name: string;
+    type: string;
+    previewUrl: string;
+    storageKey: string;
+    naturalWidth: number;
+    naturalHeight: number;
+    bytes: number;
+};
+
 export type CanvasNodeMetadata = {
     content?: string;
     composerContent?: string;
@@ -61,6 +72,7 @@ export type CanvasNodeMetadata = {
     audioSpeed?: string;
     audioInstructions?: string;
     references?: string[];
+    promptImages?: CanvasPromptImage[];
     naturalWidth?: number;
     naturalHeight?: number;
     freeResize?: boolean;
